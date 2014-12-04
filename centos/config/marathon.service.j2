@@ -1,0 +1,19 @@
+# {{ansible_managed}}
+
+#https://github.com/mesosphere/marathon-pkg/blob/master/marathon.service
+[Unit]
+Description=Marathon
+After=network.target
+Wants=network.target
+
+[Service]
+EnvironmentFile=-/etc/sysconfig/marathon
+#ExecStart=/usr/local/bin/marathon
+# --task_launch_timeout "${MARATHON_task_launch_timeout}"
+ExecStart=/opt/marathon/bin/start --hostname "${MARATHON_hostname}" --master "${MARATHON_master}" --zk "${MARATHON_zk}"
+Restart=on-abort
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

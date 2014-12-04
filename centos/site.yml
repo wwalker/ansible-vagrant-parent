@@ -1,0 +1,120 @@
+---
+- hosts: control:executor
+  sudo: true
+  gather_facts: false
+  tasks:
+    - hostname: name={{ host_ip }}
+    - selinux: state=disabled
+    - name: fetch cloudera signing key
+      get_url: url=http://archive.cloudera.com/cdh4/redhat/6/x86_64/cdh/RPM-GPG-KEY-cloudera dest=/tmp/RPM-GPG-KEY-cloudera
+    - name: add Cloudera signing key
+      rpm_key: state=present key=/tmp/RPM-GPG-KEY-cloudera
+    - name: fetch EPEL rpm
+      get_url: url=http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-2.noarch.rpm dest=/tmp/epel-release-7-2.noarch.rpm
+#    - name: fetch mesos rpm
+#      get_url: url=http://repos.mesosphere.io/el/6/noarch/RPMS/mesosphere-el-repo-6-2.noarch.rpm dest=/tmp/mesosphere-el-repo-6-2.noarch.rpm
+    - name: fetch cdh4 rpm
+      get_url: url=http://archive.cloudera.com/cdh4/one-click-install/redhat/6/x86_64/cloudera-cdh-4-0.x86_64.rpm dest=/tmp/cloudera-cdh-4-0.x86_64.rpm
+    - name: fetch mesos rpm
+      copy: src=lib/mesos-0.20.1-1.0.centos701406.x86_64.rpm dest=/tmp/mesos-0.20.1-1.0.centos701406.x86_64.rpm
+      #get_url: url=http://downloads.mesosphere.io/master/centos/7/mesos-0.20.1-1.0.centos701406.x86_64.rpm dest=/tmp/mesos-0.20.1-1.0.centos701406.x86_64.rpm
+    - name: fetch mesos python egg
+      copy: src=lib/mesos-0.20.1-py2.7-linux-x86_64.egg dest=/tmp/mesos-0.20.1-py2.7-linux-x86_64.egg
+      #get_url: url=http://downloads.mesosphere.io/master/centos/7/mesos-0.20.1-py2.7-linux-x86_64.egg dest=/tmp/mesos-0.20.1-py2.7-linux-x86_64.egg
+    - name: add some packages (EPEL, CDH4)
+      yum: state=present name={{ item }}
+      with_items:
+        - /tmp/epel-release-7-2.noarch.rpm
+#        - /tmp/mesosphere-el-repo-6-2.noarch.rpm
+        - /tmp/cloudera-cdh-4-0.x86_64.rpm
+    - name: install some base utils, java, and docker
+      yum: state=present name={{ item }}
+      with_items:
+        - wget
+        - curl
+        - unzip
+        - vim
+        - nmap
+        - java-1.7.0-openjdk
+        - docker
+    - name: enable and start docker
+      service: name=docker state=started enabled=yes
+#    - name: upgrade all packages
+#      yum: name=* state=latest
+
+#############################################################
+
+# https://mesosphere.com/docs/tutorials/install_centos_rhel/#step-1
+- hosts: control
+  sudo: true
+  gather_facts: false
+  tasks:
+    - name: install zookeeper
+      yum: state=present name=zookeeper-server
+    - name: check to see if zookeeper init has been run
+      stat: path=/var/lib/zookeeper/version-2
+      register: zkinit_dir
+    # --- configure zk ---
+    - name: generate zk data dirs
+      command: service zookeeper-server init
+      when: zkinit_dir.stat.isdir is not defined
+    - name: configure /var/lib/zookeeper/myid
+      template: src=config/myid.j2 dest=/var/lib/zookeeper/myid
+    - name: configure /etc/zookeeper/conf/zoo.cfg
+      template: src=config/zoo.cfg.j2 dest=/etc/zookeeper/conf/zoo.cfg
+    # --- restart zk ---
+    - name: restart zookeeper
+      service: name=zookeeper-server state=restarted enabled=yes
+    # --- configure mesos ---
+    - name: install mesos
+      yum: state=present name=/tmp/mesos-0.20.1-1.0.centos701406.x86_64.rpm
+    - name: install mesos python egg
+      easy_install: name=/tmp/mesos-0.20.1-py2.7-linux-x86_64.egg
+    - name: init mesos-master env
+      template: src=config/sysconfig_mesos-master.j2 dest=/etc/sysconfig/mesos-master
+    - name: install systemd unit for mesos-master
+      template: src=config/mesos-master.service.j2 dest=/usr/lib/systemd/system/mesos-master.service
+    # --- restart things ---
+    - command: systemctl daemon-reload
+    - name: kill mesos-slave
+      service: name=mesos-slave state=stopped enabled=no
+    - name: start mesos-master
+      service: name=mesos-master state=restarted enabled=yes
+    # --- configure marathon ---
+    - name: fetch marathon tarball
+      #get_url: url=http://downloads.mesosphere.io/marathon/v0.7.0/marathon-0.7.0.tgz dest=/tmp/marathon-0.7.0.tgz
+      copy: src=lib/marathon-0.7.0.tgz dest=/tmp/marathon-0.7.0.tgz
+    - name: unpack marathon
+      unarchive: src=/tmp/marathon-0.7.0.tgz dest=/opt copy=no
+    - name: link versioned marathon directory
+      file: src=/opt/marathon-0.7.0 dest=/opt/marathon state=link
+    - name: init marathon env
+      template: src=config/sysconfig_marathon.j2 dest=/etc/sysconfig/marathon
+    - name: install systemd unit for marathon
+      template: src=config/marathon.service.j2 dest=/usr/lib/systemd/system/marathon.service
+    # --- restart things ---
+    - name: start marathon
+      service: name=marathon state=restarted enabled=yes
+
+#############################################################
+
+- hosts: executor
+  sudo: true
+  gather_facts: false
+  tasks:
+    - name: install mesos
+      yum: state=present name=/tmp/mesos-0.20.1-1.0.centos701406.x86_64.rpm
+    - name: install mesos python egg
+      easy_install: name=/tmp/mesos-0.20.1-py2.7-linux-x86_64.egg
+    # --- configure mesos ---
+    - name: init mesos-slave env
+      template: src=config/sysconfig_mesos-slave.j2 dest=/etc/sysconfig/mesos-slave
+    - name: install systemd unit for mesos-slave
+      template: src=config/mesos-slave.service.j2 dest=/usr/lib/systemd/system/mesos-slave.service
+    # --- restart things ---
+    - command: systemctl daemon-reload
+    - name: kill mesos-master
+      service: name=mesos-master state=stopped enabled=no
+    - name: start mesos-slave
+      service: name=mesos-slave state=restarted enabled=yes
+

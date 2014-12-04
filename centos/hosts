@@ -1,0 +1,5 @@
+[control]
+ctrl-01 ansible_ssh_host=10.10.1.10 host_ip=10.10.1.10 zk_id=1
+
+[executor]
+node-01 ansible_ssh_host=10.10.2.10 host_ip=10.10.2.10
