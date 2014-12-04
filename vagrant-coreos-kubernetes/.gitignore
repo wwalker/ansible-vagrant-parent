@@ -1,0 +1,6 @@
+.vagrant/
+log/
+user-data
+config.rb
+/init.txt
+/tun.sh
