@@ -1,0 +1,11 @@
+sudo ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+
+sudo ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --set-uid=0 --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow'
+
+sudo ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
+
+sudo monmaptool --create --add 10.10.1.2 10.10.1.2 --fsid 3db73084-83b1-4431-97b2-883aeadebfca /tmp/monmap
+
+$ sudo mkdir /var/lib/ceph/mon/cephdemo--10.10.1.2
+
+sudo ceph-mon --mkfs -i 10.10.1.2 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring

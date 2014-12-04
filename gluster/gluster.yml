@@ -1,0 +1,61 @@
+---
+- name: gluster storage
+  hosts: storage
+  sudo: true
+  handlers:
+    - name: restart glusterd
+      service: name=glusterd state=restarted enabled=yes
+    - name: reload systemd
+      command: systemctl daemon-reload
+
+  tasks:
+    - name: create fake bricks
+      file: state=directory path=/export/brick
+
+    - name: add gluster repo
+      command: >
+        creates=/etc/yum.repos.d/glusterfs-epel.repo
+        wget http://download.gluster.org/pub/gluster/glusterfs/LATEST/CentOS/glusterfs-epel.repo -O /etc/yum.repos.d/glusterfs-epel.repo
+
+    - name: install gluster packages
+      yum: state=present name={{ item }}
+      with_items:
+        - glusterfs-server
+      notify:
+        - reload systemd
+        - restart glusterd
+
+    - name: enable glusterd
+      service: name=glusterd enabled=yes
+      notify:
+        - restart glusterd
+
+    - service: name=glusterd state=restarted enabled=yes
+
+- name: peer probe 1/2
+  hosts: node-01
+  sudo: true
+  tasks:
+    - command: gluster peer probe node-02
+
+- name: peer probe 2/2
+  hosts: node-02
+  sudo: true
+  tasks:
+    - command: gluster peer probe node-01
+
+- name: gluster storage initialization (pick one)
+  hosts: node-01
+  sudo: true
+  tasks:
+    - command: >
+        gluster volume create testvol rep 2 transport tcp 
+        {{ groups['storage']|join(":/export/brick ")}}:/export/brick
+        force
+
+    - command: gluster volume start testvol
+      ignore_errors: true
+
+# http://www.server-world.info/en/note?os=CentOS_7&p=glusterfs
+
+# http://www.gluster.org/documentation/quickstart/index.html

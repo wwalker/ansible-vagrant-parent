@@ -1,0 +1,14 @@
+[control]
+ctrl-01 ansible_ssh_host=10.10.1.2 host_ip=10.10.1.2
+
+[storage]
+node-01 ansible_ssh_host=10.10.2.2 host_ip=10.10.2.2 ceph_osd_index=0
+node-02 ansible_ssh_host=10.10.2.3 host_ip=10.10.2.3 ceph_osd_index=1
+
+[admin]
+ctrl-01
+
+[ceph:children]
+control
+storage
+

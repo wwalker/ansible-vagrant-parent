@@ -1,0 +1,51 @@
+- name: ceph stuff
+  hosts: control:storage
+  sudo: true
+  handlers:
+    - name: restart apache
+      service: name=httpd state=restarted enabled=yes
+  tasks:
+    - name: install yum-plugin-priorities
+      yum: state=present name=yum-plugin-priorities
+
+    - name: ensure priorities
+      copy: content='[main]\nenabled = 1\n' dest=/etc/yum/pluginconf.d/priorities.conf
+
+    - name: add ceph user
+      user: name=ceph 
+      #echo "{username} ALL = (root) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/{username}
+      #sudo chmod 0440 /etc/sudoers.d/{username}
+
+    - name: add Ceph signing key
+      rpm_key: state=present key=https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc
+
+    - name: init Ceph repos
+      template: src=config/{{ item }}.j2 dest=/etc/yum.repos.d/{{ item }}
+      with_items:
+        - ceph.repo
+        - ceph-fastcgi.repo
+        - ceph-apache.repo
+#        - ceph-extras.repo
+
+    - name: upgrade all packages
+      yum: name=* state=latest
+
+    - name: install ceph
+      yum: state=present name={{ item }}
+      with_items:
+        - ceph
+        - ceph-radosgw
+        - httpd
+        - mod_fastcgi
+
+    - name: adjust apache
+      lineinfile: state=present dest=/etc/httpd/conf/httpd.conf regexp='^ServerName .*' line='ServerName {{ inventory_hostname }}'
+      notify:
+        - restart apache
+
+    - name: enable apache
+      service: name=httpd enabled=yes
+
+# http://ceph.com/docs/master/install/install-ceph-gateway/
+
+# http://docs.ceph.com/docs/master/install/get-packages/

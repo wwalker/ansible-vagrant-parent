@@ -1,0 +1,16 @@
+# -*- mode: yaml -*-
+
+ceph_release: giant
+#ceph_distro: el7
+ceph_distro: rhel7
+ceph_distro_correct: centos7
+
+public_network: 10.10.0.0/16
+
+
+ceph_osd_pool_size: 1
+
+control_hostnames: "{{ groups['control']|join(\" \") }}"
+admin_hostnames: "{{ groups['admin']|join(\" \") }}"
+ceph_hostnames: "{{ groups['ceph']|join(\" \") }}"
+storage_hostnames: "{{ groups['storage']|join(\" \") }}"

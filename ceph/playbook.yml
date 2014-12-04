@@ -1,0 +1,4 @@
+- include: base.yml
+- include: ceph.yml
+- include: cephosd.yml
+#- include: upgrade.yml

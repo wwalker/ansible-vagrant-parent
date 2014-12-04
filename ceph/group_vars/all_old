@@ -1,0 +1,32 @@
+# -*- mode: yaml -*-
+
+#base_zookeeper_masters: "zk://{%- for host in groups['control'] -%}
+#{%- if not loop.first -%},{%- endif -%}
+#{{ hostvars[host]['host_ip'] }}:{{ zookeeper_client_port }}
+#{%- endfor -%}"
+
+ceph_release: giant
+# not 'el7'
+ceph_distro: rhel7
+ceph_distro_correct: centos7
+
+# $ uuidgen
+ceph_fsid: 3db73084-83b1-4431-97b2-883aeadebfca
+
+ceph_clustername: ceph
+
+public_network: 10.10.0.0/16
+
+ceph_osd_poolsize_normal: 1
+ceph_osd_poolsize_degraded: 1
+
+
+ceph_monitor_hosts: "{%- for host in groups['control'] -%}
+{%- if not loop.first -%},{%- endif -%}
+{{ host }}
+{%- endfor -%}"
+
+ceph_monitor_ips: "{%- for host in groups['control'] -%}
+{%- if not loop.first -%},{%- endif -%}
+{{ hostvars[host]['host_ip'] }}
+{%- endfor -%}"

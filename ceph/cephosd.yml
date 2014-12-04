@@ -1,0 +1,77 @@
+---
+- name: ceph OSD stuff
+  hosts: storage
+  sudo: true
+  tasks:
+    - file: state=directory path=/var/local/ceph/osd{{ ceph_osd_index }}
+
+# ------------ start bootstrap -------------------
+- name: ceph deploy for OSD & MON
+  hosts: admin
+  sudo: false
+  vars:
+    client_ssh_key: /ceph-client/.ssh/id_rsa
+    admin_user: vagrant
+    admin_group: vagrant
+    cluster_config: /home/vagrant/demo-ceph-cluster
+    bootstrap_host: "{{ groups['control'][0] }}"
+  tasks:
+    - file: state=directory path={{ cluster_config }} 
+
+    - name: create cluster
+      command: chdir={{ cluster_config }} ceph-deploy new {{ bootstrap_host }}
+        creates={{ cluster_config }}/ceph.conf
+
+    - lineinfile: >
+        state=present 
+        dest={{ cluster_config }}/ceph.conf
+        insertafter='^\[global\]'
+        line='osd_pool_default_size = {{ ceph_osd_pool_size }}'
+
+    - lineinfile: >
+        state=present 
+        dest={{ cluster_config }}/ceph.conf
+        insertafter='^\[global\]'
+        line='public_network = {{ public_network }}'
+
+    - stat: path={{ cluster_config }}/.ceph_installed
+      register: ceph_installed_ceph
+    - name: install ceph
+      command: chdir={{ cluster_config }} ceph-deploy install {{ ceph_hostnames }}
+      when: ceph_installed_ceph.stat.exists == false
+    - file: state=touch path={{ cluster_config }}/.ceph_installed
+      when: ceph_installed_ceph.stat.exists == false
+
+    - stat: path={{ cluster_config }}/.mon_create_initial
+      register: ceph_mon_create_initial
+    - command: chdir={{ cluster_config }} ceph-deploy mon create-initial
+      when: ceph_mon_create_initial.stat.exists == false
+    - file: state=touch path={{ cluster_config }}/.mon_create_initial
+      when: ceph_mon_create_initial.stat.exists == false
+
+    - stat: path={{ cluster_config }}/.osd_prepare
+      register: ceph_osd_prepare
+    - command: >
+        chdir={{ cluster_config }} 
+        ceph-deploy osd prepare {{ item }}:/var/local/ceph/osd{{ hostvars[item]['ceph_osd_index'] }}
+      with_items: groups['storage']
+      when: ceph_osd_prepare.stat.exists == false
+    - file: state=touch path={{ cluster_config }}/.osd_prepare
+      when: ceph_osd_prepare.stat.exists == false
+
+    - stat: path={{ cluster_config }}/.osd_activate
+      register: ceph_osd_activate
+    - command: >
+        chdir={{ cluster_config }} 
+        ceph-deploy osd activate {{ item }}:/var/local/ceph/osd{{ hostvars[item]['ceph_osd_index'] }}
+      with_items: groups['storage']
+      when: ceph_osd_activate.stat.exists == false
+    - file: state=touch path={{ cluster_config }}/.osd_activate
+      when: ceph_osd_activate.stat.exists == false
+
+    # ------------ end bootstrap -------------------
+
+
+
+# http://docs.ceph.com/docs/master/start/quick-ceph-deploy/
+

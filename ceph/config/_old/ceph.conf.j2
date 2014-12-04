@@ -1,0 +1,28 @@
+; {{ ansible_managed }}
+;
+; http://docs.ceph.com/docs/master/install/manual-deployment/
+
+[global]
+fsid = {{ ceph_fsid }}
+public_network = {{ public_network }}
+max open files = 131072
+auth cluster required = none
+auth service required = none
+auth client required = none
+osd pool default size = {{ ceph_osd_poolsize_normal }}
+osd pool default min size = {{ ceph_osd_poolsize_degraded }}
+
+[mon]
+mon_initial_members = {{ ceph_monitor_hosts }}
+mon_host = {{ ceph_monitor_hosts }}
+mon_addr = {{ ceph_monitor_ips }}
+
+{% for host in groups['control'] %}
+[mon.{{ host }}]
+host = {{ host }}
+mon addr = {{ hostvars[host]['host_ip'] }}
+{% endfor %}
+
+[osd]
+; because this is ext4
+filestore xattr use omap = true

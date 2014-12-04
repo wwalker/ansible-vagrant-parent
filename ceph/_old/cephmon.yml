@@ -1,0 +1,21 @@
+- name: ceph stuff
+  hosts: control
+  sudo: true
+  tasks:
+    - name: create config file
+      template: src=config/ceph.conf.j2 dest=/etc/ceph/ceph.conf
+
+    - shell: ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+    - shell: ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --set-uid=0 --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow'
+    - shell: ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
+    - shell: monmaptool --clobber --create --add {{ inventory_hostname }} {{ host_ip }} --fsid {{ ceph_fsid }} /tmp/monmap
+    - file: state=directory path=/var/lib/ceph/mon/{{ ceph_clustername }}-{{ inventory_hostname }}
+    - shell: ceph-mon --mkfs -i {{ inventory_hostname }} --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
+    - file: state=touch path=/var/lib/ceph/mon/{{ ceph_clustername }}-{{ inventory_hostname }}/done
+    - command: /etc/init.d/ceph restart mon.{{ inventory_hostname }}
+    - name: make sure everything is kosher
+      command: ceph osd lspools
+
+# need one MON server (can also be ADMIN)
+# need some OSD (object storage devices) servers
+# MDS only needed for filesystem    

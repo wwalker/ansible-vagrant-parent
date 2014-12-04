@@ -1,0 +1,58 @@
+- name: base for machine
+  hosts: all
+  sudo: true
+  handlers:
+    - name: restart ntpd
+      service: name=ntpd state=restarted enabled=yes
+  tasks:
+    - name: disable selinux
+      selinux: state=disabled
+
+    - name: ensure SELinux is turned off (for real)
+      action: command /usr/sbin/setenforce 0
+
+    - name: add EPEL repo
+      yum: state=present name=http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-2.noarch.rpm
+
+    - name: install some base utils
+      yum: state=present name={{ item }}
+      with_items:
+        - wget
+        - curl
+        - unzip
+        - vim
+        - nmap
+
+    - name: add ntpd
+      yum: state=present name={{ item }}
+      with_items:
+        - ntp
+        - ntpdate
+        - ntp-doc
+      notify:
+        - restart ntpd
+
+    #- name: onetime ntp catchup
+    #  shell: systemctl stop ntpd ; ntpdate pool.ntp.org && systemctl start ntpd
+
+    - name: enable ntpd
+      service: name=ntpd enabled=yes
+      notify:
+        - restart ntpd
+
+    - name: create /etc/hosts
+      lineinfile: state=present 
+                  dest=/etc/hosts regexp='.*{{ item }}$'
+                  line="{{ hostvars[item]['host_ip'] }} {{ item }}"
+      with_items: groups['all']
+
+
+    #- name: install java7
+    #  yum: state=present name=java-1.7.0-openjdk
+
+    #- name: install docker
+    #  yum: state=present name=docker
+
+    #- name: enable and start docker
+    #  service: name=docker state=started enabled=yes
+

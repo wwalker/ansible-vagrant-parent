@@ -1,0 +1,89 @@
+---
+- name: ceph stuff
+  hosts: ceph
+  sudo: true
+  tasks:
+    - name: add ceph user
+      user: name=ceph 
+
+    - name: add ceph user to sudoers
+      copy: content='ceph ALL = (root) NOPASSWD:ALL\n' dest="/etc/sudoers.d/ceph" mode=0440
+
+    - name: create /etc/hosts
+      lineinfile: state=present 
+                  dest=/etc/hosts regexp='.*{{ item }}$'
+                  line="{{ hostvars[item]['host_ip'] }} {{ item }}"
+      with_items: groups['ceph']
+
+    - name: add Ceph signing key
+      rpm_key: state=absent key=https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc
+
+    - file: state=absent path=/etc/yum.repos.d/ceph.repo
+
+# http://ceph.com/docs/master/rados/deployment/preflight-checklist/#install-an-operating-system
+
+- name: ceph admin
+  hosts: admin
+  sudo: true
+  vars:
+    client_ssh_key: /ceph-client/.ssh/id_rsa
+    admin_user: vagrant
+    admin_group: vagrant
+  tasks:
+    - name: create admin ssh key dir
+      file: state=directory path={{ client_ssh_key | dirname }}
+
+    - name: check for admin ssh key
+      stat: path={{ client_ssh_key }}
+      register: key_exists
+
+    - name: create admin ssh key
+      command: ssh-keygen -t rsa -b 2048 -f {{ client_ssh_key }} -N ''
+      when: key_exists.stat.exists == false
+
+    - name: set private key attributes
+      file: state=file path={{ client_ssh_key }} owner={{ admin_user }} group={{ admin_group }} mode=0600
+
+    - name: set public key attributes
+      file: state=file path={{ client_ssh_key }}.pub owner={{ admin_user }} group={{ admin_group }} mode=0644
+
+    - name: collect admin ssh keys on master
+      fetch: src={{ client_ssh_key }}.pub dest=state/id_rsa.pub-{{ ansible_hostname }} flat=yes
+
+    - name: init ceph repo
+      template: src=config/ceph.repo.j2 dest=/etc/yum.repos.d/ceph.repo
+
+    - name: upgrade all packages
+      yum: name=* state=latest
+
+    - name: install ceph-deploy
+      yum: state=present name=http://ceph.com/rpm-giant/rhel7/noarch/ceph-deploy-1.5.20-0.noarch.rpm
+      #yum: state=present name=ceph-deploy
+
+- name: ceph nodes
+  hosts: ceph
+  sudo: true
+  vars:
+    ceph_ssh_key: /home/ceph/.ssh/id_rsa
+  tasks:
+    - name: create .ssh dir for ceph user
+      file: state=directory path={{ ceph_ssh_key | dirname }} owner=ceph group=ceph mode=0700
+
+    - name: check for ceph user ssh key
+      stat: path={{ ceph_ssh_key }}
+      register: key_exists
+
+    - name: create ceph user ssh key
+      command: ssh-keygen -t rsa -b 2048 -f {{ ceph_ssh_key }} -N ''
+      when: key_exists.stat.exists == false
+
+    - name: set private key attributes
+      file: state=file path={{ ceph_ssh_key }} owner=ceph group=ceph mode=0600
+
+    - name: set public key attributes
+      file: state=file path={{ ceph_ssh_key }}.pub owner=ceph group=ceph mode=0644
+
+    - name: create ceph user authorized_keys
+      assemble: src=state remote_src=false regexp='^id_rsa.pub-.*$' 
+                dest={{ ceph_ssh_key | dirname }}/authorized_keys 
+                owner=ceph group=ceph mode=0600

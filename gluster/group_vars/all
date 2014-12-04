@@ -1,0 +1,7 @@
+# -*- mode: yaml -*-
+
+public_network: 10.10.0.0/16
+
+control_hostnames: "{{ groups['control']|join(\" \") }}"
+gluster_hostnames: "{{ groups['gluster']|join(\" \") }}"
+storage_hostnames: "{{ groups['storage']|join(\" \") }}"
