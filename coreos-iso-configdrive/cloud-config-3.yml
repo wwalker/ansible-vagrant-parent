@@ -1,0 +1,59 @@
+#cloud-config
+
+hostname: core-01
+ssh_authorized_keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDgGCRGlZCaVmWnzlFW3au/u+IOsJg/JpEIQyGyQdpoozZ5jap2zVHXZf3O7oe8rcE595GPx130iLcmgaJ5VYNeVZvFkQbrVA/ybGDR4KUpPnZKqci9HFTypwyH81HIQ5CQcsftWeQ/4GoiKqqCsQzW+6DQyvyMl5GScJCcBCgeXyZ+znTN12eN3naugdAHhKWg3odWUDIuEkXCFuKEHmpSUmvQQGgI8PH0dlkb9/1HUgIBoSXNUlWROT0pXl0fJAeXRPB1nZHU771sPui/GXxKsduhuCgq6PIJBfTFouctaj6E+9ZvLFA15JpJ0y72rFV2t5gPr/78kE43z89nWmjZ73qzS+mOh2wUlTOXlxxIIIkT4TnITyoTrpRagyWYHMAjiHUrDjSfJ0tD+u1i82oKMPWGzpq3hVgdNTyyA1lWM/RGrHGBAUWtaEsr4xHu7Jwhg6qeLWO/gQLPW92UgKClOooladjIZ0hIFy+ZD1sf00UQgCk1Z+H0wyDswl3NzAmboSy/MZUHFGRwrWhhbH8bMOc48qeQDldx25pJmJVMmACI4d8APO4uRhOWlAV9pXHxQVOg+CspvozAJ6gE7c8XKwLVZuFojdT3AwxqVhTl1x3Z28kgfv8Fu/vkQYyeX8HjV5WeCdHQsmq62LD2N/4to7qqysWopwAKiLab6ppL6w== naelyn@riker
+coreos:
+  etcd:
+#    discovery: https://discovery.etcd.io/51105ce8a2367812c0dcc150c0c63e36
+    addr: 192.168.0.30:4001
+    peer-addr: 172.12.8.50:7001
+    peer-heartbeat-interval: 250
+    peer-election-timeout: 1000
+    peers: 172.12.8.50:7001
+  fleet:
+    etcd-servers: 172.12.8.50:7001
+  units:
+    - name: 00-publicstatic.network
+      runtime: false
+      content: |
+        [Match]
+        Name=enp0s3
+        #MACAddress=08:00:27:fb:27:5a
+        
+        [Network]
+        DHCP=none
+        Address=192.168.0.30/24
+        DNS=192.168.0.1
+        Gateway=192.168.0.1
+    - name: 10-privatestatic.network
+      runtime: false
+      content: |
+        [Match]
+        Name=enp0s8
+        #MACAddress=08:00:27:81:b0:ea
+        
+        [Network]
+        DHCP=none
+        Address=172.12.8.50/24
+        #Gateway=172.12.8.1
+        #DNS=8.8.8.8
+        #DNS=8.8.4.4
+    - name: etcd.service
+      command: start
+    - name: fleet.service
+      enable: false
+      #command: start
+    - name: locksmithd.service
+      enable: false
+      #command: start
+    - name: docker.socket
+      command: start
+  update:
+    group: 
+    reboot-strategy: best-effort
+#  oem:
+#    id: coreos
+#    name: CoreOS Custom
+#    version-id: 
+#    home-url: https://coreos.comxxxxxx

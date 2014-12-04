@@ -1,0 +1,21 @@
+core-01 ansible_ssh_host=172.12.8.50 public_ip=192.168.0.30 private_ip=172.12.8.50
+
+[control]
+core-01
+
+[execute]
+core-01
+
+[coreos]
+core-01
+
+[coreos:vars]
+ansible_ssh_user=core
+ansible_python_interpreter="PATH=/home/core/bin:$PATH python"
+#ansible_python_interpreter="/opt/bin/python"
+domain=fake.local
+machine_metadata=[]
+coreos_channel=alpha
+#coreos_channel=stable
+# From discovery.etcd.io/new
+#coreos_discovery=https://discovery.etcd.io/72acbdd9e72fe082dd419cdbf2626847

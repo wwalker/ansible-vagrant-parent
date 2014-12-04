@@ -1,0 +1,6 @@
+# -*- mode: conf -*-
+
+coreos_channel_id: stable
+coreos_version_id: current
+
+blobserver_url: http://172.12.8.10:8080
