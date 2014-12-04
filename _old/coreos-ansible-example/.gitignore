@@ -1,0 +1,7 @@
+.vagrant
+ssh.config
+#ansible.cfg
+#roles
+/mm
+/docker/mesos2/mesos-0.20.1-1.0.centos64.x86_64.rpm
+/bin/ansible.cfg

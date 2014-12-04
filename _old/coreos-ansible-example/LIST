@@ -1,0 +1,24 @@
+# https://coreos.com/blog/managing-coreos-with-ansible/
+
+# https://github.com/tazjin/coreos-ansible
+
+$ vagrant up
+-- wait for vagrant to finish booting the machine(s) --
+$ ./bin/generate_ssh_config
+
+$ ansible all -m setup
+>> FAILURE
+
+$ ansible-playbook bootstrap.yml
+
+$ ansible all -m setup
+>> OK
+
+$ ansible all -m all
+>> OK
+
+$ ansible-playbook site.yml
+
+###########################
+
+https://github.com/veverjak/coreos-mesos-marathon

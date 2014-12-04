@@ -1,0 +1,8 @@
+- name: provision cloud-config
+  hosts: coreos
+  sudo: true
+  tasks:
+    - name: install user-data
+      template: src=user-data dest=/var/lib/coreos-vagrant/vagrantfile-user-data
+    - name: reprovision
+      command: coreos-cloudinit --from-file /var/lib/coreos-vagrant/vagrantfile-user-data

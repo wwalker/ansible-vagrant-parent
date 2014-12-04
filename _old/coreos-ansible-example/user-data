@@ -1,0 +1,163 @@
+#cloud-config
+
+# https://coreos.com/docs/launching-containers/building/customizing-docker/#increase-ulimits
+#
+# http://linuxmanpages.net/manpages/fedora17/man5/systemd.exec.5.html
+#write_files:
+#  - path: /etc/systemd/system/docker.service.d/increase-ulimit.conf
+#    owner: core:core
+#    permissions: 0644
+#    content: |
+#      [Service]
+#      LimitMEMLOCK=infinity
+#      LimitNOFILE=infinity
+
+coreos:
+  etcd:
+    discovery: https://discovery.etcd.io/8d0a1279f14b0805c8889d57699ae6f9
+    addr: $private_ipv4:4001
+    peer-addr: $private_ipv4:7001
+  units:
+    - name: etcd.service
+      command: start
+    - name: fleet.service
+      command: start
+    - name: docker.service
+      command: start
+      # seeded from coreos: /usr/lib/systemd/system/docker.service
+      content: |
+        [Unit]
+        Description=Docker Application Container Engine 
+        Documentation=http://docs.docker.io
+        Requires=docker.socket
+        After=docker.socket
+        
+        [Service]
+        Environment="TMPDIR=/var/tmp/"
+        ExecStartPre=/bin/mount --make-rprivate /
+        LimitNOFILE=1048576
+        LimitNPROC=1048576
+        LimitMEMLOCK=infinity
+        # Run docker but don't have docker automatically restart
+        # containers. This is a job for systemd and unit files.
+        # --insecure-registry 192.168.0.16:5050
+        ExecStart=/usr/bin/docker --daemon --storage-driver=btrfs --host=fd://
+        
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: docker-tcp.socket
+      # access docker remotely
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Docker Socket for the API
+
+        [Socket]
+        ListenStream=2375
+        Service=docker.service
+        BindIPv6Only=both
+
+        [Install]
+        WantedBy=sockets.target
+    - name: cadvisor.service
+      command: start
+      content: |
+        [Unit]
+        Description=cAdvisor Service
+        After=docker.service
+        Requires=docker.service
+      
+        [Service]
+        Restart=always
+        ExecStartPre=-/usr/bin/docker kill cadvisor
+        ExecStartPre=-/usr/bin/docker rm -f cadvisor
+        ExecStartPre=/usr/bin/docker pull google/cadvisor
+        ExecStart=/usr/bin/docker run --name cadvisor --volume=/var/run:/var/run:rw --volume=/sys:/sys:ro --volume=/var/lib/docker/:/var/lib/docker:ro --publish=4194:4194 google/cadvisor --logtostderr --port=4194
+        ExecStop=/usr/bin/docker stop -t 2 cadvisor
+
+        [Install]
+        WantedBy=multi-user.target
+    - name: zookeeper.service
+      command: start
+      content: |
+        [Unit]
+        Description=Zookeeper
+        After=docker.service
+        Requires=docker.service
+
+        [Service]
+        Restart=always
+        ExecStartPre=-/usr/bin/docker kill zookeeper
+        ExecStartPre=-/usr/bin/docker rm -f zookeeper
+        ExecStartPre=/usr/bin/docker pull naelyn/zk:latest
+        ExecStart=/usr/bin/docker run --name zookeeper --volume=/data -p "2888:2888" -p "3888:3888" -p "2181:2181" naelyn/zk:latest
+        ExecStop=/usr/bin/docker stop -t 2 zookeeper
+
+        [Install]
+        WantedBy=multi-user.target
+    - name: mesos-master.service
+      command: start
+      content: |
+        [Unit]
+        Description=Mesos Master
+        After=docker.service
+        After=zookeeper.service
+        Requires=docker.service
+        Requires=zookeeper.service
+
+        [Service]
+        Restart=always
+        ExecStartPre=-/usr/bin/docker kill abc-mesos-master
+        ExecStartPre=-/usr/bin/docker rm -f abc-mesos-master
+        ExecStartPre=/usr/bin/docker pull naelyn/mesos:latest
+        ExecStart=/usr/bin/docker run --name abc-mesos-master --net=host -e MESOS_QUORUM=1 -e ZOOKEEPER_ENDPOINTS=$public_ipv4:2181 -e MESOS_IP=$public_ipv4 -v /data -v /mesoslog -p "5050:5050" naelyn/mesos:latest master
+        ExecStop=/usr/bin/docker stop -t 2 abc-mesos-master
+
+        [Install]
+        WantedBy=multi-user.target
+    - name: mesos-slave.service
+      command: start
+      content: |
+        [Unit]
+        Description=Mesos Slave
+        After=docker.service
+        After=zookeeper.service
+        Requires=docker.service
+        Requires=zookeeper.service
+
+        [Service]
+        Restart=always
+        ExecStartPre=-/usr/bin/docker kill abc-mesos-slave
+        ExecStartPre=-/usr/bin/docker rm -f abc-mesos-slave
+        ExecStartPre=/usr/bin/docker pull naelyn/mesos:latest
+        ExecStart=/usr/bin/docker run --name abc-mesos-slave --net=host -e MESOS_QUORUM=1 -e ZOOKEEPER_ENDPOINTS=$public_ipv4:2181 -e MESOS_IP=$public_ipv4 -v /data -v /mesoslog -v /var/run/docker.sock:/var/run/docker.sock -v /sys:/sys:ro -p "5051:5051" naelyn/mesos:latest slave
+        ExecStop=/usr/bin/docker stop -t 2 abc-mesos-slave
+
+        [Install]
+        WantedBy=multi-user.target
+    - name: marathon.service
+      command: start
+      content: |
+        [Unit]
+        Description=Marathon
+        After=docker.service
+        After=zookeeper.service
+        Requires=docker.service
+        Requires=zookeeper.service
+
+        [Service]
+        Restart=always
+        ExecStartPre=-/usr/bin/docker kill marathon
+        ExecStartPre=-/usr/bin/docker rm -f marathon
+        ExecStartPre=/usr/bin/docker pull naelyn/mesos:latest
+        ExecStart=/usr/bin/docker run --name marathon -e ZOOKEEPER_ENDPOINTS=$public_ipv4:2181 -e MARATHON_IP=$public_ipv4 -p "8080:8080" naelyn/marathon:latest
+        ExecStop=/usr/bin/docker stop -t 2 marathon
+
+        [Install]
+        WantedBy=multi-user.target
+  update:
+    group: alpha
+    reboot-strategy: best-effort
+    #reboot-strategy: off

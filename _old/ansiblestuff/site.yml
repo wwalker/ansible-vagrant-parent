@@ -1,0 +1,212 @@
+---
+- hosts: all
+  sudo: True
+  handlers:
+    - name: tidy apt
+      command: apt-get autoremove -y
+    - name: kill things
+      command: pkill puppet
+  tasks:
+    - name: is dash the default?
+      shell: readlink /bin/sh
+      register: dash_or_bash
+    - name: make sure bash is the default
+      when: dash_or_bash.stdout.find("dash") != -1
+      shell: echo "dash dash/sh boolean false" | debconf-set-selections &&
+             DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash
+    - name: cleanup from vagrant defaults
+      apt: name={{ item }} state=absent purge=yes
+      with_items:
+        - chef
+        - puppet
+      notify:
+        - tidy apt
+        - kill things
+    - name: add some base packages
+      apt: name={{ item }} state=present
+      with_items:
+        - vim
+        - nmap
+        - wget
+        - curl
+        - unzip
+        # haproxy can be useful later
+        - haproxy
+    # --- java ---
+    - name: check for java
+      command: dpkg -s oracle-java7-installer
+      ignore_errors: True 
+      register: java_installed
+    - name: accept oracle terms
+      when: java_installed.rc == 1
+      shell: echo oracle-java7-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections
+    - name: add java ppa
+      apt_repository: repo="ppa:webupd8team/java" state=present update_cache=yes
+    - name: install java
+      apt: name={{ item }} state=present
+      with_items:
+        - 'oracle-java7-installer'
+        - 'oracle-java7-set-default'
+
+#################################################
+- hosts: mesos:zookeeper
+  sudo: True
+  gather_facts: False
+  tasks:
+    - name: no launching things automatically by default
+      shell: echo 'manual' > /etc/init/{{ item }}.override
+      with_items:
+        - zookeeper
+        - mesos-master
+        - mesos-slave
+        - marathon
+
+#################################################
+- hosts: mesos
+  sudo: True
+  gather_facts: False
+  tasks:
+    # --- docker ---
+    - name: add docker signing key
+      apt_key: keyserver=hkp://keyserver.ubuntu.com:80 id=36A1D7869245C8950F966E92D8576A8BA88D21E9
+    - name: add docker repository
+      apt_repository: repo='deb https://get.docker.io/ubuntu docker main' state=present update_cache=yes
+    - name: install docker
+      apt: name=lxc-docker state=present
+
+#################################################
+- hosts: mesos:zookeeper
+  sudo: True
+  gather_facts: False
+  tasks:
+    - name: add mesos signing key
+      apt_key: keyserver=hkp://keyserver.ubuntu.com:80 id=81026D0004C44CF7EF55ADF8DF7D54CBE56151BF
+    - name: add mesosphere repository
+      apt_repository: repo='deb http://repos.mesosphere.io/ubuntu trusty main' state=present update_cache=yes
+
+- hosts: zookeeper
+  sudo: True
+  gather_facts: False
+  tasks:
+    - name: install zookeeper
+      apt: name={{ item }} state=present
+      with_items:
+        - zookeeper 
+        - zookeeperd 
+        - zookeeper-bin
+
+- hosts: mesos_slaves
+  sudo: True
+  gather_facts: False
+  tasks:
+    - name: install mesos
+      apt: name=mesos state=present
+
+- hosts: mesos_masters
+  sudo: True
+  gather_facts: False
+  tasks:
+    - name: install mesos & marathon
+      apt: name={{ item }} state=present
+      with_items:
+        - mesos
+        - marathon
+    - name: install aurora
+      unarchive: src=aurora-scheduler-0.5.1-SNAPSHOT.zip dest=/usr/local
+    - file: src=/usr/local/aurora-scheduler-0.5.1-SNAPSHOT dest=/usr/local/aurora-scheduler state=link
+
+- hosts: mesos:zookeeper
+  sudo: True
+  gather_facts: False
+  tasks:
+    # --- stop things ---
+    - name: stop all automatic stuff
+      service: name={{ item }} state=stopped enabled=no 
+      # TODO: is this safe?
+      ignore_errors: True 
+      with_items:
+        - zookeeper
+        - mesos-master
+        - mesos-slave
+        - marathon
+
+#################################################
+- hosts: zookeeper
+  sudo: True
+  gather_facts: False
+  tasks:
+    # --- configure zk ---
+    - name: configure /etc/zookeeper/conf/myid
+      template: src=config/myid.j2 dest=/etc/zookeeper/conf/myid
+    - name: configure /etc/zookeeper/conf/zoo.cfg
+      template: src=config/zoo.cfg.j2 dest=/etc/zookeeper/conf/zoo.cfg
+    # --- restart things ---
+    - file: path=/etc/init/zookeeper.override state=absent
+    - name: restart zookeeper
+      service: name=zookeeper state=restarted enabled=yes
+
+#################################################
+- hosts: mesos
+  sudo: True
+  gather_facts: False
+  tasks:
+    # --- configure zk connection info for all mesos instances ---
+    - name: configure /etc/mesos/zk
+      template: src=config/zk.j2 dest=/etc/mesos/zk
+
+- hosts: mesos_masters
+  sudo: True
+  gather_facts: False
+  tasks:
+    # --- configure mesos ---
+    - name: configure /etc/mesos-master/quorum
+      template: src=config/quorum.j2 dest=/etc/mesos-master/quorum
+    - name: configure /etc/mesos-master/{ip, hostname}
+      template: src=config/ip.j2 dest=/etc/mesos-master/{{ item }}
+      with_items:
+        - ip
+        - hostname
+    # --- configure marathon ---
+    - name: init marathon conf dir
+      file: path=/etc/marathon/conf state=directory recurse=yes
+    - name: configure /etc/marathon/conf/hostname
+      template: src=config/ip.j2 dest=/etc/marathon/conf/hostname
+    - name: configure /etc/marathon/conf/master
+      template: src=config/zk.j2 dest=/etc/marathon/conf/master
+    - name: configure /etc/marathon/conf/zk
+      template: src=config/marathon_zk.j2 dest=/etc/marathon/conf/zk
+    # --- restart things ---
+    - file: path=/etc/init/{{ item }}.override state=absent
+      with_items:
+        - mesos-master
+        - marathon
+    - name: start things
+      service: name={{ item }} state=restarted enabled=yes
+      with_items:
+        - mesos-master
+        - marathon
+
+#################################################
+- hosts: mesos_slaves
+  sudo: True
+  gather_facts: False
+  tasks:
+    # --- configure mesos ---
+    - name: configure /etc/mesos-slave/{ip, hostname}
+      template: src=config/ip.j2 dest=/etc/mesos-slave/{{ item }}
+      with_items:
+        - ip
+        - hostname
+    # --- restart things ---
+    - file: path=/etc/init/mesos-slave.override state=absent
+    - name: start mesos-slave
+      service: name=mesos-slave state=restarted enabled=yes
+
+#################################################
+# https://www.digitalocean.com/community/tutorials/how-to-configure-a-production-ready-mesosphere-cluster-on-ubuntu-14-04
+
+# https://mesosphere.github.io/marathon/docs/ssl-basic-access-authentication.html
+# https://mesosphere.github.io/marathon/docs/health-checks.html
+# https://mesosphere.github.io/marathon/docs/artifact-store.html
+
+#  gather_facts: False

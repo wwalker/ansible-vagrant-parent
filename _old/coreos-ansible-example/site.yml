@@ -1,0 +1,7 @@
+- include: bootstrap.yml
+#- include: cloudinit.yml
+- include: base.yml
+#- include: cadvisor.yml
+#- include: website.yml
+#- include: zk.yml
+- include: cloudconfig.yml

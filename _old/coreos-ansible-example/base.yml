@@ -1,0 +1,9 @@
+- name: base for machine
+  hosts: coreos
+  sudo: true
+  tasks:
+#    - name: Start etcd
+#      service: name=etcd.service state=started
+#
+    - name: Install docker-py
+      pip: name=docker-py

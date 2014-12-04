@@ -1,0 +1,16 @@
+[zookeeper]
+zk.vagrant.local zk_id=1
+#node2.vagrant.local zk_id=2
+#node3.vagrant.local zk_id=3
+
+[mesos_masters]
+m1.vagrant.local
+
+[mesos_slaves]
+s1.vagrant.local
+s2.vagrant.local
+
+[mesos:children]
+mesos_masters
+mesos_slaves
+
