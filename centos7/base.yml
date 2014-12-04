@@ -1,0 +1,50 @@
+- name: base for machine
+  hosts: control:executor
+  sudo: true
+#  gather_facts: false
+  tasks:
+#    - hostname: name={{ host_ip }}
+
+    - name: configure yum to cache rpms locally
+      lineinfile: state=present dest=/etc/yum.conf regexp='^keepcache=' line='keepcache=1'
+
+    - name: disable selinux
+      selinux: state=disabled
+
+    - name: ensure SELinux is turned off (for real)
+      action: command /usr/sbin/setenforce 0
+
+    - name: add EPEL repo
+      yum: state=present name={{ filez }}/epel-release-7-2.noarch.rpm
+
+    - name: install some base utils, java, and docker
+      yum: state=present name={{ item }}
+      with_items:
+        - wget
+        - curl
+        - unzip
+        - vim
+        - nmap
+
+    - name: install java7
+      yum: state=present name=java-1.7.0-openjdk
+
+# @extras
+    - name: install docker
+      yum: state=present name=docker
+
+    - name: enable and start docker
+      service: name=docker state=started enabled=yes
+
+    - name: check if mesos is installed
+      shell: yum list installed mesos -q | grep "^mesos.x86_64" | wc -l
+      register: yum_mesos_installed
+
+    - name: add Mesos repo
+      yum: state=present name={{ filez }}/mesosphere-el-repo-6-2.noarch.rpm
+      when: yum_mesos_installed.stdout == '0'
+
+    - name: install mesos
+      yum: state=present name={{ filez }}/mesos-0.20.1-1.0.centos701406.x86_64.rpm
+      when: yum_mesos_installed.stdout == '0'
+

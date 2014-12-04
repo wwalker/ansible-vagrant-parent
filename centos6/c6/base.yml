@@ -1,0 +1,96 @@
+- name: base for machine
+  hosts: control:executor
+  sudo: true
+#  gather_facts: false
+  handlers:
+    - name: restart docker
+      service: name=docker state=restarted 
+  tasks:
+#    - hostname: name={{ host_ip }}
+
+    - name: install support for ansible to use selinux
+      yum: state=present name=libselinux-python
+
+    - name: configure yum to cache rpms locally
+      lineinfile: state=present dest=/etc/yum.conf regexp='^keepcache=' line='keepcache=1'
+
+    - name: disable selinux (messes with docker/lxc)
+      selinux: state=disabled
+
+    - name: ensure SELinux is turned off (for real)
+      action: command /usr/sbin/setenforce 0
+      ignore_errors: true
+
+    - name: add EPEL repo
+      yum: state=present name={{ filez }}/epel-release-6-8.noarch.rpm
+
+# HACK FOR DOCKER
+#    - name: HACK add elrepo-kernel key
+#      command: rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+#    - name: HACK add elrepo-kernel repo
+#      command: rpm -Uvh http://www.elrepo.org/elrepo-release-6-6.el6.elrepo.noarch.rpm
+#    - name: HACK upgrade kernel to mainline
+#      command: yum --enablerepo=elrepo-kernel install kernel-ml
+#    - name: HACK edit grub.conf
+#      lineinfile: state=present dest=/etc/grub.conf regexp='^default=' line='default=0'
+#    - name: HACK: trigger reboot
+#      command: reboot
+
+    - name: install some base utils
+      yum: state=present name={{ item }}
+      with_items:
+        - wget
+        - curl
+        - unzip
+        - vim
+        - nmap
+
+    - name: install java7
+      yum: state=present name=java-1.7.0-openjdk
+
+#    - name: install docker
+#      yum: state=present name=docker-io
+#      notify:
+#        - restart docker
+
+    - name: check if mesos is installed
+      shell: yum list installed mesos -q | grep "^mesos.x86_64.*0.21.0" | wc -l
+      register: yum_mesos_installed
+
+    - name: add Mesos repo
+      yum: state=present name={{ filez }}/mesosphere-el-repo-6-2.noarch.rpm
+      when: yum_mesos_installed.stdout == '0'
+
+    - file: path=/etc/init/mesos-master.override state=absent
+    - file: path=/etc/init/mesos-slave.override state=absent
+
+ #   - name: pre-disable some daemons that overstart (1)
+ #     shell: echo 'manual' > /etc/init/{{ item }}.override
+ #     when: yum_mesos_installed.stdout == '0'
+ #     with_items:
+ #       - mesos-master
+ #       - mesos-slave
+
+    - name: install mesos
+      #yum: state=present name={{ filez }}/mesos-0.20.1-1.0.centos64.x86_64.rpm
+      yum: state=present name={{ filez }}/mesos-0.21.0-1.0.centos65.x86_64.rpm
+      when: yum_mesos_installed.stdout == '0'
+  #    register: yum_mesos_installed_this_time
+
+    - name: disable mesos daemons
+      lineinfile: state=present dest=/etc/init/{{ item }} regexp='^start on' line='#start on stopped rc RUNLEVEL=[2345]'
+      with_items:
+        - mesos-master.conf
+        - mesos-slave.conf
+
+#    - name: pre-disable some daemons that overstart (2)
+      #service: name={{ item }} state=stopped
+#      command: service {{ item }} stop
+#      ignore_errors: true
+#      when: yum_mesos_installed_this_time is defined and yum_mesos_installed_this_time.stdout == '0'
+#      with_items:
+#        - mesos-master
+#        - mesos-slave
+
+#    - name: upgrade all packages
+#      yum: name=* state=latest

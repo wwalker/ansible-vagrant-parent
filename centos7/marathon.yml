@@ -1,0 +1,32 @@
+- hosts: control
+  sudo: true
+#  gather_facts: false
+  handlers:
+    - name: restart marathon
+      service: name=marathon state=restarted
+  tasks:
+    - name: fetch marathon tarball
+      get_url: url={{ filez }}/marathon-0.7.5.tgz dest=/tmp/marathon-0.7.5.tgz
+
+    - name: unpack marathon
+      unarchive: src=/tmp/marathon-0.7.5.tgz dest=/opt copy=no
+
+    - name: link versioned marathon directory
+      file: src=/opt/marathon-0.7.5 dest=/opt/marathon state=link
+
+    - name: init marathon env
+      template: src=config/sysconfig_marathon.j2 dest=/etc/sysconfig/marathon
+      notify:
+        - restart marathon
+
+    - name: install systemd unit for marathon
+      template: src=config/marathon.service.j2 dest=/usr/lib/systemd/system/marathon.service
+      notify:
+        - restart marathon
+
+    - command: systemctl daemon-reload
+
+    - name: enable marathon
+      service: name=marathon enabled=yes
+      notify:
+        - restart marathon

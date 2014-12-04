@@ -1,0 +1,26 @@
+- hosts: executor
+  sudo: true
+#  gather_facts: false
+  handlers:
+    - name: restart mesos slave
+      service: name=mesos-slave state=restarted 
+  tasks:
+    - name: init mesos-slave env
+      template: src=config/sysconfig_mesos-slave.j2 dest=/etc/sysconfig/mesos-slave
+      notify:
+        - restart mesos slave
+
+    - name: install systemd unit for mesos-slave
+      template: src=config/mesos-slave.service.j2 dest=/usr/lib/systemd/system/mesos-slave.service
+      notify:
+        - restart mesos slave
+
+    - command: systemctl daemon-reload
+
+    - name: kill mesos-master
+      service: name=mesos-master state=stopped enabled=no
+
+    - name: enable mesos-slave
+      service: name=mesos-slave enabled=yes
+      notify:
+        - restart mesos slave

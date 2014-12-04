@@ -1,0 +1,19 @@
+# -*- mode: sh -*-
+
+# {{ansible_managed}}
+
+MESOS_ip="{{ host_ip }}"
+MESOS_hostname="{{ host_ip }}"
+MESOS_work_dir=/var/lib/mesos
+MESOS_log_dir=/var/log/mesos
+
+MESOS_zk="{{ mesos_zookeeper_masters }}"
+
+MESOS_master="{{ mesos_zookeeper_masters }}"
+
+
+{# http://pkgs.fedoraproject.org/cgit/mesos.git/tree/mesos-slave #}
+# systemd cgroup integration
+#MESOS_isolation='cgroups/cpu,cgroups/mem'
+#MESOS_cgroups_root='system.slice/mesos-slave.service'
+#MESOS_cgroups_hierarchy=/sys/fs/cgroup

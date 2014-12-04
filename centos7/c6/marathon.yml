@@ -1,0 +1,68 @@
+- hosts: control
+  sudo: true
+#  gather_facts: false
+  handlers:
+    - name: restart marathon
+      service: name=marathon state=restarted
+  tasks:
+    - name: check if marathon is installed
+      shell: yum list installed marathon -q | grep "^marathon.x86_64.*0.7.5" | wc -l
+      register: yum_marathon_installed
+
+    - name: install marathon
+      yum: state=present name={{ filez }}/marathon-0.7.5-1.0.x86_64.rpm
+      when: yum_marathon_installed.stdout == '0'
+      notify:
+        - restart marathon
+
+    - name: init marathon conf dir
+      file: path=/etc/marathon/conf state=directory recurse=yes
+
+    - name: configure /etc/marathon/conf/master
+      template: src=config/zk.j2 dest=/etc/marathon/conf/master
+      notify:
+        - restart marathon
+
+    - name: configure /etc/marathon/conf/hostname
+      template: src=config/ip.j2 dest=/etc/marathon/conf/hostname
+      notify:
+        - restart marathon
+
+    - name: configure /etc/marathon/conf/zk
+      template: src=config/marathon_zk.j2 dest=/etc/marathon/conf/zk
+      notify:
+        - restart marathon
+
+    - name: enable marathon
+      file: path=/etc/init/marathon.override state=absent
+      notify:
+        - restart marathon
+
+    - command: initctl reload-configuration
+
+
+#    - name: fetch marathon tarball
+#      get_url: url={{ filez }}/marathon-0.7.5.tgz dest=/tmp/marathon-0.7.5.tgz
+#
+#    - name: unpack marathon
+#      unarchive: src=/tmp/marathon-0.7.5.tgz dest=/opt copy=no
+#
+#    - name: link versioned marathon directory
+#      file: src=/opt/marathon-0.7.5 dest=/opt/marathon state=link
+#
+#    - name: init marathon env
+#      template: src=config/sysconfig_marathon.j2 dest=/etc/sysconfig/marathon
+#      notify:
+#        - restart marathon
+#
+#    - name: install systemd unit for marathon
+#      template: src=config/marathon.service.j2 dest=/usr/lib/systemd/system/marathon.service
+#      notify:
+#        - restart marathon
+#
+#    - command: systemctl daemon-reload
+#
+#    - name: enable marathon
+#      service: name=marathon enabled=yes
+#      notify:
+#        - restart marathon

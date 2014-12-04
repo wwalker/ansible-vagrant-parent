@@ -1,0 +1,86 @@
+# -*- mode: ruby -*-
+# # vi: set ft=ruby :
+
+require 'fileutils'
+
+Vagrant.require_version ">= 1.6.0"
+
+$num_control = 1
+$num_executor = 1
+
+$control_ip_base='10.10.1.'
+$control_ips = $num_control.times.collect { |n| $control_ip_base + "#{n+2}" }
+$control_ips_str = $control_ips.join(",")
+
+$executor_ip_base='10.10.2.'
+$executor_ips = $num_executor.times.collect { |n| $executor_ip_base + "#{n+2}" }
+$executor_ips_str = $executor_ips.join(",")
+
+$vb_memory = 1024
+
+# This stuff is cargo-culted from
+# http://www.stefanwrobel.com/how-to-make-vagrant-performance-not-suck.
+# Give access to half of all cpu cores on the host. We divide by 2 as we
+# assume that users are running with hyperthreads.
+#
+# rboyer: stole this from
+# https://github.com/GoogleCloudPlatform/kubernetes/blob/master/Vagrantfile
+#
+$vb_cpus = (`nproc`.to_i/2.0).ceil
+#$vb_cpus = 1
+
+Vagrant.configure("2") do |config|
+  def customize_vm(config)
+    config.vm.box = "chef/centos-7.0"
+
+    # make this fast
+    # apt-get install nfs-kernel-server
+    #config.vm.synced_folder '.', '/vagrant', nfs: true
+    config.vm.synced_folder '.', '/vagrant', disabled: true
+
+    config.vm.provider :virtualbox do |vb|
+      vb.gui = false
+
+      vb.memory = $vb_memory
+      vb.cpus = $vb_cpus
+      #v.customize ["modifyvm", :id, "--memory", $vb_mem]
+      #v.customize ["modifyvm", :id, "--cpus", $vb_cpus]
+
+      # Use faster paravirtualized networking
+      vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
+      vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
+      # , "--ioapic", "on"
+
+    end
+  end
+
+  $num_control.times do |i|
+    config.vm.define vm_name = "ctrl-%02d" % (i+1) do |config|
+      customize_vm config
+
+      control_index = i+1
+      control_ip = $control_ips[i]
+
+      config.vm.network :private_network, ip: "#{control_ip}", :netmask => "255.255.0.0"
+      config.vm.hostname = vm_name
+
+      #config.vm.provision :file, :source => "#{CLOUD_CONFIG_PATH}", :destination => "/tmp/vagrantfile-user-data"
+      #config.vm.provision :shell, :inline => "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", :privileged => true
+    end
+  end
+
+  $num_executor.times do |i|
+    config.vm.define vm_name = "exec-%02d" % (i+1) do |config|
+      customize_vm config
+
+      executor_index = i+1
+      executor_ip = $executor_ips[i]
+
+      config.vm.network :private_network, ip: "#{executor_ip}", :netmask => "255.255.0.0"
+      config.vm.hostname = vm_name
+
+      #config.vm.provision :file, :source => "#{CLOUD_CONFIG_PATH}", :destination => "/tmp/vagrantfile-user-data"
+      #config.vm.provision :shell, :inline => "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", :privileged => true
+    end
+  end
+end

@@ -1,0 +1,22 @@
+# -*- mode: yaml -*-
+
+filez: "http://10.10.0.1:8080"
+
+zookeeper_leader_port: "2888"
+zookeeper_election_port: "3888"
+zookeeper_client_port: "2181"
+
+base_zookeeper_masters: "zk://{%- for host in groups['control'] -%}
+{%- if not loop.first -%},{%- endif -%}
+{{ hostvars[host]['host_ip'] }}:{{ zookeeper_client_port }}
+{%- endfor -%}"
+
+mesos_zookeeper_masters: "{{ base_zookeeper_masters }}/mesos" 
+marathon_zookeeper_masters: "{{ base_zookeeper_masters }}/marathon" 
+
+mesos_quorum: "1"
+# https://mesosphere.com/learn/launch-docker-container-on-mesosphere/
+#mesos_containerizers: "docker,mesos"
+mesos_containerizers: "mesos"
+mesos_executor_timeout: "5mins"
+mesos_cluster: "rb_demo"

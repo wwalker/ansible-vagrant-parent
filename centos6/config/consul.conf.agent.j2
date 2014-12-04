@@ -1,0 +1,15 @@
+description "consul agent"
+
+start on started networking
+stop on shutdown
+
+setuid consul
+
+console log
+
+respawn
+
+env GOMAXPROCS=2
+export GOMAXPROCS
+
+exec /usr/local/bin/consul agent -server -bootstrap-expect 1 -data-dir /var/lib/consul -node=riker -ui-dir /usr/local/consul-ui-0.4.0

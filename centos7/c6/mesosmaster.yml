@@ -1,0 +1,34 @@
+- hosts: control
+  sudo: true
+#  gather_facts: false
+  handlers:
+    - name: restart mesos master
+      service: name=mesos-master state=restarted
+  tasks:
+    - name: configure /etc/mesos/zk
+      template: src=config/zk.j2 dest=/etc/mesos/zk
+      notify:
+        - restart mesos master
+
+    - name: configure /etc/mesos-master/quorum
+      template: src=config/quorum.j2 dest=/etc/mesos-master/quorum
+      notify:
+        - restart mesos master
+
+    - name: configure /etc/mesos-master/{ip, hostname}
+      template: src=config/ip.j2 dest=/etc/mesos-master/{{ item }}
+      with_items:
+        - ip
+        - hostname
+      notify:
+        - restart mesos master
+
+    - name: enable mesos master
+      lineinfile: state=present dest=/etc/init/mesos-master.conf regexp='^#start on' line='start on stopped rc RUNLEVEL=[2345]'
+      notify:
+        - restart mesos master
+
+#    - name: enable mesos master
+#      file: path=/etc/init/mesos-master.override state=absent
+
+    - command: initctl reload-configuration

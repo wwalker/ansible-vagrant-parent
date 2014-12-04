@@ -1,0 +1,8 @@
+- include: base.yml
+- include: zk.yml
+- include: mesosmaster.yml
+- include: mesosslave.yml
+- include: marathon.yml
+
+# if you want to add aurora, chronos, or jenkins:
+# https://github.com/ahunnargikar/vagrant-mesos/blob/master/aurora/aurora.sh

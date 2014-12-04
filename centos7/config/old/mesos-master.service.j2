@@ -1,0 +1,17 @@
+# {{ansible_managed}}
+
+# https://github.com/timothysc/mesos-rpm/blob/master/mesos-master.service
+[Unit]
+Description=Mesos Cluster Manager
+After=network.target
+Wants=network.target
+
+[Service]
+EnvironmentFile=-/etc/sysconfig/mesos-master
+ExecStart=/usr/local/sbin/mesos-master
+Restart=always
+RestartSec=20
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target
