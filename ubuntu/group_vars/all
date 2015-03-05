@@ -2,13 +2,18 @@
 zookeeper_leader_port: "2888"
 zookeeper_election_port: "3888"
 
-base_zookeeper_masters: "zk://{%- for host in groups['control'] -%}
+base_zookeeper_masters_no_scheme: "{%- for host in groups['control'] -%}
 {%- if not loop.first -%},{%- endif -%}
 {{ hostvars[host]['host_ip'] }}:2181
 {%- endfor -%}"
+
+base_zookeeper_masters: "zk://{{ base_zookeeper_masters_no_scheme }}"
 
 mesos_zookeeper_masters: "{{ base_zookeeper_masters }}/mesos" 
 
 mesos_quorum: "1"
 mesos_containerizers: "docker,mesos"
 mesos_executor_timeout: "5mins"
+
+aurora_cluster_name: "rboyer-demo"
+aurora_quorum: "1"

@@ -1,0 +1,49 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+export JAVA_HOME=/usr/lib/jvm/default-java
+AURORA_HOME=/usr/local/aurora-scheduler
+
+# Flags controlling the JVM.
+JAVA_OPTS=(
+	-server
+	-Xmx1g
+	-Xms1g
+
+	-Djava.library.path=/usr/local/lib
+)
+
+# Flags controlling the scheduler.
+AURORA_FLAGS=(
+	-cluster_name="{{ aurora_cluster_name }}"
+
+	-http_port=8081
+
+	-native_log_quorum_size={{ aurora_quorum }}
+
+	-zk_endpoints="{{ base_zookeeper_masters_no_scheme }}"
+	-mesos_master_address="{{ mesos_zookeeper_masters }}"
+	-serverset_path=/aurora/scheduler
+	-native_log_zk_group_path=/aurora/replicated_log
+
+	-native_log_file_path="/var/lib/aurora/db"
+	-backup_dir="/var/lib/aurora/backups"
+
+	-enable_beta_updater=true
+	-allowed_container_types=MESOS,DOCKER
+
+	# TODO(Kevin Sweeney): Point these to real URLs.
+	-thermos_executor_path=/dev/null
+	-gc_executor_path=/dev/null
+
+	-vlog=INFO
+	-logtostderr
+)
+
+# Environment variables controlling libmesos
+export GLOG_v=1
+export LIBPROCESS_PORT=8083
+export LIBPROCESS_IP={{ host_ip }}
+
+JAVA_OPTS="${JAVA_OPTS[*]}" exec "$AURORA_HOME/bin/aurora-scheduler" "${AURORA_FLAGS[@]}"

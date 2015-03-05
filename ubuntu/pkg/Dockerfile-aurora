@@ -1,0 +1,42 @@
+FROM ubuntu:trusty
+
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF
+Executing: gpg --ignore-time-conflict --no-options --no-default-keyring --homedir /tmp/tmp.adXlHzv0Wx --no-auto-check-trustdb --trust-model always --keyring /etc/apt/trusted.gpg --primary-keyring /etc/apt/trusted.gpg --keyserver keyserver.ubuntu.com --recv E56151BF
+
+RUN echo "deb http://repos.mesosphere.io/ubuntu trusty main" > /etc/apt/sources.list.d/mesosphere.list
+
+RUN apt-get update
+
+RUN apt-get -y install \
+    curl \
+    git \
+    libcurl4-openssl-dev \
+    libsasl2-dev \
+    openjdk-7-jdk \
+    python-dev
+
+RUN update-alternatives --set java /usr/lib/jvm/java-7-openjdk-amd64/jre/bin/java
+
+RUN apt-get -y install \
+	mesos \
+    zookeeper
+
+RUN apt-get -y install \
+	build-essential
+
+RUN	adduser build --quiet
+USER build
+WORKDIR /home/build
+
+RUN git clone https://github.com/apache/incubator-aurora.git aurora
+WORKDIR /home/build/aurora
+RUN git checkout -b deploy 0.7.0-incubating
+RUN ./gradlew distZip
+
+RUN cp ./dist/distributions/aurora-scheduler-0.7.0-INCUBATING.zip /mnt
+
+#ADD apache-aurora-0.7.0-incubating.tar.gz /opt/
+
+#RUN mv /opt/apache-aurora-0.7.0-incubating /opt/aurora && \
+#	adduser build --system --group && \
+#	chown -R build:build /opt/aurora

@@ -2,6 +2,6 @@ aping:
 	ansible all -m ping
 
 ansible:
-	ansible-playbook -v -f 4 playbook.yml
+	ansible-playbook -v site.yml
 
-.PHONY: aping ansible
+.PHONY: aping ansible fetch

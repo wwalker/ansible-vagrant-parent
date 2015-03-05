@@ -1,6 +1,7 @@
 ---
 - hosts: control:execute
   sudo: True
+  gather_facts: False
   tasks:
     - name: add mesos signing key
       apt_key: keyserver=hkp://keyserver.ubuntu.com:80 id=81026D0004C44CF7EF55ADF8DF7D54CBE56151BF
@@ -11,6 +12,7 @@
 #################################################
 - hosts: control
   sudo: True
+  gather_facts: False
   tasks:
     - name: no launching things automatically by default
       shell: echo 'manual' > /etc/init/{{ item }}.override
@@ -33,6 +35,39 @@
         - zookeeper
         - zookeeperd
         - zookeeper-bin
+
+    # --- install & configure aurora ---
+    - name: install aurora
+      unarchive: src=pkg/aurora-scheduler-0.7.0-INCUBATING.zip dest=/usr/local
+
+    - name: vanity symlink for aurora
+      file: src=/usr/local/aurora-scheduler-0.7.0-INCUBATING dest=/usr/local/aurora-scheduler state=link
+
+    - name: aurora vanity start script
+      template: src=config/aurora-start.j2 dest=/usr/local/bin/aurora-start mode=0755
+
+    - name: create aurora user & group
+      user: name=aurora system=yes state=present shell=/bin/false createhome=no
+
+    - name: create aurora dirs
+      file: state=directory path=/var/lib/{{ item }} owner=aurora group=aurora mode=0755
+      with_items:
+        - aurora
+        - aurora/backups
+        - aurora/db
+
+    - stat: path=/var/lib/aurora/.log_initialized
+      register: aurora_log_init
+    - name: initialize aurora database
+      command: mesos-log initialize --path=/var/lib/aurora/db
+      sudo: yes
+      sudo_user: aurora
+      when: aurora_log_init.stat.exists == false
+    - file: state=touch path=/var/lib/aurora/.log_initialized
+      when: aurora_log_init.stat.exists == false
+
+    - name: add aurora to upstart
+      copy: src=config/aurora.conf dest=/etc/init/aurora.conf owner=root group=root mode=0644
 
     # --- configure zk ---
     - name: configure /etc/zookeeper/conf/myid
@@ -65,14 +100,16 @@
     - name: start mesos things
       service: name={{ item }} state=restarted enabled=yes
       with_items:
-        - mesos-master
-#        - chronos
-        - marathon
         - zookeeper
+        - mesos-master
+        - marathon
+        - aurora
+#        - chronos
 
 #################################################
 - hosts: execute
   sudo: True
+  gather_facts: False
   tasks:
     - name: no launching things automatically by default
       shell: echo 'manual' > /etc/init/{{ item }}.override
