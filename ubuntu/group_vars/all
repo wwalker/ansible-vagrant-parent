@@ -1,0 +1,14 @@
+# -*- mode: conf -*-
+zookeeper_leader_port: "2888"
+zookeeper_election_port: "3888"
+
+base_zookeeper_masters: "zk://{%- for host in groups['control'] -%}
+{%- if not loop.first -%},{%- endif -%}
+{{ hostvars[host]['host_ip'] }}:2181
+{%- endfor -%}"
+
+mesos_zookeeper_masters: "{{ base_zookeeper_masters }}/mesos" 
+
+mesos_quorum: "1"
+mesos_containerizers: "docker,mesos"
+mesos_executor_timeout: "5mins"

@@ -1,0 +1,37 @@
+---
+- hosts: all
+  sudo: True
+  handlers:
+    - name: tidy apt
+      command: apt-get autoremove -y
+    - name: kill things
+      command: pkill puppet
+  tasks:
+    - name: cleanup from vagrant defaults
+      apt: name={{ item }} state=absent purge=yes
+      with_items:
+        - chef
+        - puppet
+      notify:
+        - tidy apt
+        - kill things
+
+    - name: add some base packages
+      apt: name={{ item }} state=present
+      with_items:
+        - curl
+        - nmap 
+        - rsync
+#        - unrar
+        - unzip
+        - vim
+        - wget
+        # haproxy can be useful later
+        - haproxy
+
+    - name: disable crash reports
+      lineinfile: state=present dest=/etc/default/apport regexp='^enabled=' line='enabled=0'
+
+    - name: disable apport
+      service: name=apport state=stopped
+      ignore_errors: True 

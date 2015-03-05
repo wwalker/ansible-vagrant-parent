@@ -1,0 +1,108 @@
+---
+- hosts: control:execute
+  sudo: True
+  tasks:
+    - name: add mesos signing key
+      apt_key: keyserver=hkp://keyserver.ubuntu.com:80 id=81026D0004C44CF7EF55ADF8DF7D54CBE56151BF
+
+    - name: add mesosphere repository
+      apt_repository: repo='deb http://repos.mesosphere.io/ubuntu trusty main' state=present update_cache=yes
+
+#################################################
+- hosts: control
+  sudo: True
+  tasks:
+    - name: no launching things automatically by default
+      shell: echo 'manual' > /etc/init/{{ item }}.override
+      with_items:
+        - mesos-slave
+
+    - name: things we DO want to launch
+      file: path=/etc/init/{{ item }}.override state=absent
+      with_items:
+        - zookeeper
+        - marathon
+        - mesos-master
+
+    - name: install mesos stuff
+      apt: state=present name={{ item }}
+      with_items:
+        - mesos
+        - marathon
+#        - chronos
+        - zookeeper
+        - zookeeperd
+        - zookeeper-bin
+
+    # --- configure zk ---
+    - name: configure /etc/zookeeper/conf/myid
+      template: src=config/myid.j2 dest=/etc/zookeeper/conf/myid
+    - name: configure /etc/zookeeper/conf/zoo.cfg
+      template: src=config/zoo.cfg.j2 dest=/etc/zookeeper/conf/zoo.cfg
+
+    # --- configure mesos ---
+    - name: configure /etc/mesos/zk
+      template: src=config/zk.j2 dest=/etc/mesos/zk
+    - name: configure /etc/mesos-master/quorum
+      template: src=config/quorum.j2 dest=/etc/mesos-master/quorum
+    - name: configure /etc/mesos-master/{ip, hostname}
+      template: src=config/ip.j2 dest=/etc/mesos-master/{{ item }}
+      with_items:
+        - ip
+        - hostname
+
+    # --- configure marathon ---
+    - name: init marathon conf dir
+      file: path=/etc/marathon/conf state=directory recurse=yes
+    - name: configure /etc/marathon/conf/hostname
+      template: src=config/ip.j2 dest=/etc/marathon/conf/hostname
+    - name: configure /etc/marathon/conf/master
+      template: src=config/zk.j2 dest=/etc/marathon/conf/master
+    - name: configure /etc/marathon/conf/zk
+      template: src=config/marathon_zk.j2 dest=/etc/marathon/conf/zk
+
+    # --- (re)start things ---
+    - name: start mesos things
+      service: name={{ item }} state=restarted enabled=yes
+      with_items:
+        - mesos-master
+#        - chronos
+        - marathon
+        - zookeeper
+
+#################################################
+- hosts: execute
+  sudo: True
+  tasks:
+    - name: no launching things automatically by default
+      shell: echo 'manual' > /etc/init/{{ item }}.override
+      with_items:
+        - zookeeper
+        - mesos-master
+        - marathon
+
+    - name: things we DO want to launch
+      file: path=/etc/init/{{ item }}.override state=absent
+      with_items:
+        - mesos-slave
+
+    - name: install mesos stuff
+      apt: state=present name={{ item }}
+      with_items:
+        - mesos
+
+    # --- configure mesos ---
+    - name: configure /etc/mesos/zk
+      template: src=config/zk.j2 dest=/etc/mesos/zk
+    - name: configure /etc/mesos-slave/{ip, hostname}
+      template: src=config/ip.j2 dest=/etc/mesos-slave/{{ item }}
+      with_items:
+        - ip
+        - hostname
+
+    # --- (re)start things ---
+    - name: start mesos things
+      service: name={{ item }} state=restarted enabled=yes
+      with_items:
+        - mesos-slave
+

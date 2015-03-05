@@ -1,0 +1,6 @@
+[control]
+ctrl-01 host_ip=10.10.1.2 zk_id=1
+
+[execute]
+exec-01 host_ip=10.10.2.2
+
