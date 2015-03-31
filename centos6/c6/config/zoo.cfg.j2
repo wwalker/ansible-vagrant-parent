@@ -1,9 +1,0 @@
-# {{ansible_managed}}
-
-{%- for host in groups['control'] %}
-server.{{ zk_id }}={{ host_ip }}:{{ zookeeper_leader_port }}:{{ zookeeper_election_port }}
-{% endfor -%}
-
-tickTime=2000
-dataDir=/var/lib/zookeeper
-clientPort={{ zookeeper_client_port }}

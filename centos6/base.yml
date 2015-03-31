@@ -22,7 +22,7 @@
       ignore_errors: true
 
     - name: add EPEL repo
-      yum: state=present name={{ filez }}/epel-release-6-8.noarch.rpm
+      yum: state=present name=http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm
 
 # HACK FOR DOCKER
 #    - name: HACK add elrepo-kernel key
@@ -58,7 +58,7 @@
       register: yum_mesos_installed
 
     - name: add Mesos repo
-      yum: state=present name={{ filez }}/mesosphere-el-repo-6-2.noarch.rpm
+      yum: state=present name=http://repos.mesosphere.io/el/6/noarch/RPMS/mesosphere-el-repo-6-2.noarch.rpm
       when: yum_mesos_installed.stdout == '0'
 
     - file: path=/etc/init/mesos-master.override state=absent
@@ -73,7 +73,7 @@
 
     - name: install mesos
       #yum: state=present name={{ filez }}/mesos-0.20.1-1.0.centos64.x86_64.rpm
-      yum: state=present name={{ filez }}/mesos-0.21.0-1.0.centos65.x86_64.rpm
+      yum: state=present name=mesos
       when: yum_mesos_installed.stdout == '0'
   #    register: yum_mesos_installed_this_time
 

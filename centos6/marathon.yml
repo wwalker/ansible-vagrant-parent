@@ -10,7 +10,7 @@
       register: yum_marathon_installed
 
     - name: install marathon
-      yum: state=present name={{ filez }}/marathon-0.7.5-1.0.x86_64.rpm
+      yum: state=present name=marathon
       when: yum_marathon_installed.stdout == '0'
       notify:
         - restart marathon

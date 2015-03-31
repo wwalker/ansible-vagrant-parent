@@ -1,6 +1,0 @@
-[control]
-ctrl-01 ansible_ssh_host=10.10.1.2 host_ip=10.10.1.2 zk_id=1
-
-[executor]
-exec-01 ansible_ssh_host=10.10.2.2 host_ip=10.10.2.2
-
